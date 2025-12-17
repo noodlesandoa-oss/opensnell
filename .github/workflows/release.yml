@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+      
+      - name: Run tests
+        run: go test ./...
+
+  build-and-release:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Build and Release
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [amd64, arm64]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+      
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Build snell-client
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build \
+            -ldflags "-X github.com/icpz/open-snell/constants.Version=${{ steps.version.outputs.VERSION }}" \
+            -o snell-client-${{ matrix.os }}-${{ matrix.arch }} \
+            ./cmd/snell-client
+      
+      - name: Build snell-server
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build \
+            -ldflags "-X github.com/icpz/open-snell/constants.Version=${{ steps.version.outputs.VERSION }}" \
+            -o snell-server-${{ matrix.os }}-${{ matrix.arch }} \
+            ./cmd/snell-server
+      
+      - name: Create release archive
+        run: |
+          mkdir -p snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}
+          cp snell-client-${{ matrix.os }}-${{ matrix.arch }} snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-client
+          cp snell-server-${{ matrix.os }}-${{ matrix.arch }} snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-server
+          cp README.md LICENSE.md snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
+          tar czf snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
+          ls -lh snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

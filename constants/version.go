@@ -14,4 +14,4 @@
 
 package constants
 
-var Version string = "nightly"
+var Version string = "dev"
