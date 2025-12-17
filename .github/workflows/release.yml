@@ -48,6 +48,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           go build \
             -ldflags "-X github.com/icpz/open-snell/constants.Version=${{ steps.version.outputs.VERSION }}" \
@@ -58,6 +59,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
         run: |
           go build \
             -ldflags "-X github.com/icpz/open-snell/constants.Version=${{ steps.version.outputs.VERSION }}" \
