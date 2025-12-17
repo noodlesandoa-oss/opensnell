@@ -15,47 +15,93 @@
 package snell
 
 import (
-	"context"
-	"errors"
 	"net"
-
-	"github.com/icpz/pool"
+	"sync"
+	"time"
 )
 
 type snellFactory = func() (net.Conn, error)
 
+type idleConn struct {
+	c net.Conn
+	t time.Time
+}
+
 type snellPool struct {
-	pool *pool.Pool
+	conns   chan *idleConn
+	factory snellFactory
+	lease   time.Duration
+	mu      sync.Mutex
+	closed  bool
 }
 
 func (p *snellPool) Get() (net.Conn, error) {
-	i := p.pool.Get()
-	switch e := i.(type) {
-	case error:
-		return nil, e
-	case net.Conn:
-		return &snellPoolConn{
-			Conn: e,
-			pool: p,
-		}, nil
+	for {
+		select {
+		case ic := <-p.conns:
+			if time.Since(ic.t) > p.lease {
+				ic.c.Close()
+				continue
+			}
+			return &snellPoolConn{
+				Conn: ic.c,
+				pool: p,
+				t:    ic.t,
+			}, nil
+		default:
+			c, err := p.factory()
+			if err != nil {
+				return nil, err
+			}
+			return &snellPoolConn{
+				Conn: c,
+				pool: p,
+				t:    time.Now(),
+			}, nil
+		}
 	}
-	return nil, errors.New("Invalid Type")
+}
+
+func (p *snellPool) put(c net.Conn, t time.Time) {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		c.Close()
+		return
+	}
+	p.mu.Unlock()
+
+	select {
+	case p.conns <- &idleConn{c: c, t: t}:
+	default:
+		c.Close()
+	}
 }
 
 func (p *snellPool) Close() {
-	p.pool.ReleaseAll()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return
+	}
+	p.closed = true
+	close(p.conns)
+	for ic := range p.conns {
+		ic.c.Close()
+	}
 }
 
 type snellPoolConn struct {
 	net.Conn
 	pool *snellPool
+	t    time.Time
 }
 
 func (pc *snellPoolConn) Close() error {
 	if pc.pool == nil {
 		return pc.Conn.Close()
 	}
-	pc.pool.pool.Put(pc.Conn)
+	pc.pool.put(pc.Conn, pc.t)
 	return nil
 }
 
@@ -64,21 +110,9 @@ func (pc *snellPoolConn) MarkUnusable() {
 }
 
 func newSnellPool(maxSize, leaseMS int, factory snellFactory) (*snellPool, error) {
-	p := pool.New(
-		func(ctx context.Context) interface{} {
-			c, e := factory()
-			if e != nil {
-				return e
-			}
-			return c
-		},
-		pool.OptCapacity(maxSize),
-		pool.OptLeaseMS(int64(leaseMS)),
-		pool.OptDeleter(func(i interface{}) {
-			if c, ok := i.(net.Conn); ok {
-				c.Close()
-			}
-		}),
-	)
-	return &snellPool{p}, nil
+	return &snellPool{
+		conns:   make(chan *idleConn, maxSize),
+		factory: factory,
+		lease:   time.Duration(leaseMS) * time.Millisecond,
+	}, nil
 }

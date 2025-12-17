@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -33,6 +34,13 @@ import (
 	p "github.com/icpz/open-snell/components/utils/pool"
 )
 
+// handshakeBufPool reuses buffers for server handshake to reduce GC pressure
+var handshakeBufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 255)
+	},
+}
+
 type SnellServer struct {
 	listener net.Listener
 	psk      []byte
@@ -40,7 +48,9 @@ type SnellServer struct {
 }
 
 func (s *SnellServer) ServerHandshake(c net.Conn) (target string, cmd byte, err error) {
-	buf := make([]byte, 255)
+	buf := handshakeBufPool.Get().([]byte)
+	defer handshakeBufPool.Put(buf)
+	
 	if _, err = io.ReadFull(c, buf[:3]); err != nil {
 		return
 	}
@@ -159,7 +169,7 @@ muxLoop:
 		}
 
 		var el error = nil
-		tc, err := net.Dial("tcp", target)
+		tc, err := net.DialTimeout("tcp", target, 5*time.Second)
 		if err != nil {
 			el = s.writeError(conn, err)
 		} else {

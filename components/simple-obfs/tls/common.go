@@ -17,17 +17,11 @@ package tls
 import (
 	"bytes"
 	"io"
-	"math/rand"
 	"net"
 	"sync"
-	"time"
 
 	p "github.com/icpz/open-snell/components/utils/pool"
 )
-
-func init() {
-	rand.Seed(time.Now().Unix())
-}
 
 const (
 	chunkSize = 16 * 1024

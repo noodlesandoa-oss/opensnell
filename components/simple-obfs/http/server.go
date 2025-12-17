@@ -82,14 +82,14 @@ const httpResponseTemplate = "HTTP/1.1 101 Switching Protocols\r\n" +
 	"Sec-WebSocket-Accept: %s\r\n" +
 	"\r\n"
 
-var vMajor = rand.Int() % 11
-var vMinor = rand.Int() % 12
-
 func (hos *HTTPObfsServer) Write(b []byte) (int, error) {
 	if hos.firstResponse {
 		randBytes := make([]byte, 16)
 		rand.Read(randBytes)
 		date := time.Now().Format(time.RFC1123)
+		// Generate random nginx version numbers
+		vMajor := rand.Intn(11)
+		vMinor := rand.Intn(12)
 		resp := fmt.Sprintf(httpResponseTemplate, vMajor, vMinor, date, base64.URLEncoding.EncodeToString(randBytes))
 		_, err := hos.Conn.Write([]byte(resp))
 		if err != nil {

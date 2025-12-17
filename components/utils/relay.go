@@ -23,7 +23,7 @@ import (
 )
 
 func Relay(left, right net.Conn) (el, er error) {
-	ch := make(chan error)
+	ch := make(chan error, 2)
 
 	go func() {
 		buf := p.Get(p.RelayBufferSize)

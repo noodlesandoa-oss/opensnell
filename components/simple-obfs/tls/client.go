@@ -4,9 +4,9 @@ package tls
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"io"
-	"math/rand"
 	"net"
 	"time"
 )
