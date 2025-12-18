@@ -68,18 +68,18 @@ jobs:
       
       - name: Create release archive
         run: |
-          mkdir -p snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}
-          cp snell-client-${{ matrix.os }}-${{ matrix.arch }} snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-client
-          cp snell-server-${{ matrix.os }}-${{ matrix.arch }} snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-server
-          cp README.md LICENSE.md snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
-          tar czf snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
-          ls -lh snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          mkdir -p open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}
+          cp snell-client-${{ matrix.os }}-${{ matrix.arch }} open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-client
+          cp snell-server-${{ matrix.os }}-${{ matrix.arch }} open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-server
+          cp README.md LICENSE.md open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
+          tar czf open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
+          ls -lh open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: snell-${{ matrix.os }}-${{ matrix.arch }}
-          path: snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          name: open-snell-${{ matrix.os }}-${{ matrix.arch }}
+          path: open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
           retention-days: 1
 
   release:
