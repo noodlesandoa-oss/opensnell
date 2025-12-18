@@ -88,6 +88,26 @@ try_download() {
 
 fetch_latest_tag() {
   # Returns the latest GitHub release tag (e.g. v0.1.1).
+  # Prefer the redirect-based method (works even when GitHub API is rate-limited).
+  local latest_url="https://github.com/${REPO}/releases/latest"
+  local effective=""
+  if command -v curl >/dev/null 2>&1; then
+    effective="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$latest_url" 2>/dev/null || true)"
+  elif command -v wget >/dev/null 2>&1; then
+    # wget doesn't have url_effective; parse Location from headers.
+    effective="$(wget -S -O /dev/null "$latest_url" 2>&1 | awk 'tolower($1)=="location:"{print $2}' | tail -n 1 | tr -d '\r' || true)"
+  fi
+
+  if [[ -n "$effective" ]]; then
+    local tag_from_redirect
+    tag_from_redirect="${effective##*/}"
+    if [[ "$tag_from_redirect" == v* ]]; then
+      printf "%s" "$tag_from_redirect"
+      return 0
+    fi
+  fi
+
+  # Fallback: GitHub API
   local url="https://api.github.com/repos/${REPO}/releases/latest"
   local tmp
   tmp="$(mktemp)"
