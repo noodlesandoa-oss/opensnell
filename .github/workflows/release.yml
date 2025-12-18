@@ -73,13 +73,17 @@ jobs:
           cp snell-server-${{ matrix.os }}-${{ matrix.arch }} open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/snell-server
           cp README.md LICENSE.md open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
           tar czf open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}/
-          ls -lh open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          # Also publish a stable asset name for "releases/latest/download" installers.
+          cp open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz open-snell-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          ls -lh open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz open-snell-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: open-snell-${{ matrix.os }}-${{ matrix.arch }}
-          path: open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          path: |
+            open-snell-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            open-snell-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
           retention-days: 1
 
   release:

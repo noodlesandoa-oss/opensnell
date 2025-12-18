@@ -47,6 +47,11 @@ log() {
   printf "%s\n" "$*" >&2
 }
 
+debug() {
+  [[ "${OPEN_SNELL_DEBUG:-0}" == "1" ]] || return 0
+  log "[debug] $*"
+}
+
 die() {
   log "ERROR: $*"
   exit 1
@@ -75,12 +80,26 @@ try_download() {
   local url="$1"
   local out="$2"
 
+  # Expose the last attempted URL / error for diagnostics.
+  LAST_TRY_URL="$url"
+  LAST_TRY_ERROR=""
+
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$out" >/dev/null 2>&1 || return 1
+    local err
+    err="$(curl -fsSL "$url" -o "$out" 2>&1)" || {
+      LAST_TRY_ERROR="$err"
+      debug "download failed (curl): url=$url err=$err"
+      return 1
+    }
     return 0
   fi
   if command -v wget >/dev/null 2>&1; then
-    wget -qO "$out" "$url" >/dev/null 2>&1 || return 1
+    local err
+    err="$(wget -qO "$out" "$url" 2>&1)" || {
+      LAST_TRY_ERROR="$err"
+      debug "download failed (wget): url=$url err=$err"
+      return 1
+    }
     return 0
   fi
   return 1
@@ -92,10 +111,19 @@ fetch_latest_tag() {
   local latest_url="https://github.com/${REPO}/releases/latest"
   local effective=""
   if command -v curl >/dev/null 2>&1; then
-    effective="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$latest_url" 2>/dev/null || true)"
+    local out rc
+    out="$(curl -fsSL -o /dev/null -w '%{http_code} %{url_effective}' "$latest_url" 2>&1)" || rc=$?
+    rc=${rc:-0}
+    debug "latest tag probe (curl): rc=${rc} out='${out}'"
+    if [[ "$rc" -eq 0 ]]; then
+      effective="$(printf '%s' "$out" | awk '{print $2}')"
+    fi
   elif command -v wget >/dev/null 2>&1; then
     # wget doesn't have url_effective; parse Location from headers.
-    effective="$(wget -S -O /dev/null "$latest_url" 2>&1 | awk 'tolower($1)=="location:"{print $2}' | tail -n 1 | tr -d '\r' || true)"
+    local out
+    out="$(wget -S -O /dev/null "$latest_url" 2>&1 || true)"
+    debug "latest tag probe (wget): $(printf '%s' "$out" | tail -n 3)"
+    effective="$(printf '%s' "$out" | awk 'tolower($1)=="location:"{print $2}' | tail -n 1 | tr -d '\r' || true)"
   fi
 
   if [[ -n "$effective" ]]; then
@@ -114,6 +142,7 @@ fetch_latest_tag() {
   rm -f "$tmp" || true
 
   if ! try_download "$url" "$tmp"; then
+    debug "github api latest failed: url=$url err='${LAST_TRY_ERROR:-}'"
     rm -f "$tmp" || true
     return 1
   fi
@@ -196,13 +225,6 @@ install_from_release() {
   arch="$(detect_arch)"
 
   release_tag="$OPEN_SNELL_TAG"
-  if [[ -z "$release_tag" ]]; then
-    release_tag="$(fetch_latest_tag || true)"
-  fi
-  if [[ -z "$release_tag" ]]; then
-    log "Unable to determine latest release tag, falling back to source build"
-    return 1
-  fi
 
   out="$(mktemp)"
 
@@ -213,19 +235,42 @@ install_from_release() {
     candidates=("$OPEN_SNELL_ASSET")
   else
     candidates=(
-      "open-snell-${release_tag}-linux-${arch}.tar.gz"
-      "open-snell-${release_tag}-linux-${arch}.tgz"
-      "snell-${release_tag}-linux-${arch}.tar.gz"
-      "snell-${release_tag}-linux-${arch}.tgz"
+      # Preferred: stable asset names that work with releases/latest/download
+      "open-snell-linux-${arch}.tar.gz"
+      "open-snell-linux-${arch}.tgz"
       "snell-server_linux_${arch}"
       "snell_linux_${arch}.tar.gz"
       "snell_linux_${arch}.tgz"
     )
+
+    # If a tag is specified (or we can determine one), also try versioned asset names.
+    if [[ -z "$release_tag" ]]; then
+      release_tag="$(fetch_latest_tag || true)"
+    fi
+    if [[ -n "$release_tag" ]]; then
+      candidates=(
+        "open-snell-${release_tag}-linux-${arch}.tar.gz"
+        "open-snell-${release_tag}-linux-${arch}.tgz"
+        "snell-${release_tag}-linux-${arch}.tar.gz"
+        "snell-${release_tag}-linux-${arch}.tgz"
+        "${candidates[@]}"
+      )
+    fi
+    if [[ -z "$release_tag" ]]; then
+      log "Note: could not determine latest release tag."
+      log "- If your release assets are versioned like open-snell-vX.Y.Z-..., set OPEN_SNELL_TAG=vX.Y.Z"
+      log "- Or ensure the release also uploads stable assets like open-snell-linux-${arch}.tar.gz"
+      log "- For more diagnostics: OPEN_SNELL_DEBUG=1"
+    fi
   fi
 
   local cand
   for cand in "${candidates[@]}"; do
-    url="https://github.com/${REPO}/releases/download/${release_tag}/${cand}"
+    if [[ -n "$release_tag" && "$cand" == *"${release_tag}"* ]]; then
+      url="https://github.com/${REPO}/releases/download/${release_tag}/${cand}"
+    else
+      url="https://github.com/${REPO}/releases/latest/download/${cand}"
+    fi
 
     rm -f "$out" || true
     log "Attempting release install: ${url}"
@@ -270,6 +315,12 @@ install_from_release() {
 
   rm -f "$out" || true
   log "Release asset not available, falling back to source build"
+  if [[ -n "${LAST_TRY_URL:-}" ]]; then
+    log "Last attempted URL: ${LAST_TRY_URL}"
+  fi
+  if [[ -n "${LAST_TRY_ERROR:-}" ]]; then
+    log "Last error: ${LAST_TRY_ERROR}"
+  fi
   return 1
 }
 
