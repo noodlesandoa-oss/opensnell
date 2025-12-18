@@ -50,7 +50,7 @@ type SnellServer struct {
 func (s *SnellServer) ServerHandshake(c net.Conn) (target string, cmd byte, err error) {
 	buf := handshakeBufPool.Get().([]byte)
 	defer handshakeBufPool.Put(buf)
-	
+
 	if _, err = io.ReadFull(c, buf[:3]); err != nil {
 		return
 	}
@@ -143,7 +143,7 @@ muxLoop:
 		}
 
 		if command != CommandUDP {
-			log.V(1).Infof("New target from %s to %s\n", conn.RemoteAddr().String(), target)
+			log.Infof("New target from %s to %s\n", conn.RemoteAddr().String(), target)
 		}
 
 		if c, ok := conn.(*net.TCPConn); ok {
@@ -298,16 +298,16 @@ uotLoop:
 			}
 
 			head = 3 + iplen /* now points to port */
-			if n < head + 2 {
-				log.Errorf("UDP over TCP insufficient chunk size: %d < %d\n", n, head + 2)
+			if n < head+2 {
+				log.Errorf("UDP over TCP insufficient chunk size: %d < %d\n", n, head+2)
 				break
 			}
 			ip := net.IP(buf[3:head])
 			host = ip.String()
 		} else {
 			head = 2 + int(hlen)
-			if n < head + 2 {
-				log.Errorf("UDP over TCP insufficient chunk size: %d < %d\n", n, head + 2)
+			if n < head+2 {
+				log.Errorf("UDP over TCP insufficient chunk size: %d < %d\n", n, head+2)
 				break
 			}
 			host = string(buf[2:head])
@@ -370,7 +370,7 @@ func (s *SnellServer) handleUDPIngress(conn net.Conn, pc net.PacketConn) {
 		case 6:
 			buffer.Write([]byte(uaddr.IP.To16()))
 		}
-		buffer.Write([]byte{byte(uaddr.Port>>8), byte(uaddr.Port&0xff)})
+		buffer.Write([]byte{byte(uaddr.Port >> 8), byte(uaddr.Port & 0xff)})
 		buffer.Write(buf[:n])
 
 		_, err = conn.Write(buffer.Bytes())

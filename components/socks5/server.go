@@ -70,6 +70,7 @@ func handleSocks(conn net.Conn, cb SocksCallback) {
 		conn.Close()
 		return
 	}
+	log.Infof("SOCKS request from %s to %s (cmd=%d)\n", conn.RemoteAddr().String(), target.String(), command)
 	if c, ok := conn.(*net.TCPConn); ok {
 		c.SetKeepAlive(true)
 	}

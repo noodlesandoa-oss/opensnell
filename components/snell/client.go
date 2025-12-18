@@ -229,7 +229,7 @@ func NewSnellClient(listen, server, obfs, obfsHost, psk string, isV2 bool) (*Sne
 
 func (s *SnellClient) handleSnell(client net.Conn, addr socks5.Addr) {
 	target, err := s.GetSession(addr.String())
-	log.V(1).Infof("New target from %s to %s\n", client.RemoteAddr().String(), addr.String())
+	log.Infof("New target from %s to %s\n", client.RemoteAddr().String(), addr.String())
 	if err != nil {
 		log.Warningf("Failed to connect to target %s, error %v\n", addr.String(), err)
 		client.Close()

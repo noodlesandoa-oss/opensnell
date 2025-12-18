@@ -392,6 +392,7 @@ main() {
 listen = 0.0.0.0:${port}
 psk = ${psk}
 obfs = http
+verbose = true
 EOF
     chmod 0640 "$CONFIG_PATH"
 

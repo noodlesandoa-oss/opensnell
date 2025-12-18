@@ -35,6 +35,22 @@ type Config struct {
 	ObfsHost   string
 	PSK        string
 	SnellVer   string
+	Verbose    bool
+}
+
+func initLogging(verbose bool) {
+	// Default glog to stderr so systemd/journalctl can capture logs.
+	_ = flag.Set("logtostderr", "true")
+	_ = flag.Set("alsologtostderr", "true")
+	if !verbose {
+		return
+	}
+	// If user didn't specify -v, enable basic verbose logs.
+	if v := flag.Lookup("v"); v != nil {
+		if v.Value.String() == "0" {
+			_ = flag.Set("v", "1")
+		}
+	}
 }
 
 func parseConfig() (*Config, error) {
@@ -46,6 +62,7 @@ func parseConfig() (*Config, error) {
 		obfsHost   string
 		psk        string
 		snellVer   string
+		verbose    bool
 		version    bool
 	)
 
@@ -55,10 +72,12 @@ func parseConfig() (*Config, error) {
 	flag.StringVar(&obfsType, "obfs", "", "obfs type")
 	flag.StringVar(&obfsHost, "obfs-host", "bing.com", "obfs host")
 	flag.StringVar(&psk, "k", "", "pre-shared key")
+	flag.BoolVar(&verbose, "verbose", false, "enable verbose logs (equivalent to -v=1 for glog)")
 	flag.BoolVar(&version, "version", false, "show open-snell version")
 
+	// Set logging defaults before parsing so glog doesn't default to files.
+	initLogging(false)
 	flag.Parse()
-	flag.Set("logtostderr", "true")
 
 	if version {
 		fmt.Printf("Open-snell client, version: %s\n", constants.Version)
@@ -84,6 +103,7 @@ func parseConfig() (*Config, error) {
 		obfsHost = sec.Key("obfs-host").String()
 		psk = sec.Key("psk").String()
 		snellVer = sec.Key("version").String()
+		verbose = sec.Key("verbose").MustBool(false)
 	}
 
 	if serverAddr == "" {
@@ -110,14 +130,18 @@ func parseConfig() (*Config, error) {
 		ObfsHost:   obfsHost,
 		PSK:        psk,
 		SnellVer:   snellVer,
+		Verbose:    verbose,
 	}, nil
 }
 
 func main() {
+	defer log.Flush()
+
 	cfg, err := parseConfig()
 	if err != nil {
 		log.Fatalf("Configuration error: %v\n", err)
 	}
+	initLogging(cfg.Verbose)
 
 	sn, err := snell.NewSnellClient(
 		cfg.ListenAddr,
